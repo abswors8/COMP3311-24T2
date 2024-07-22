@@ -1,0 +1,62 @@
+#!/usr/bin/python3
+import sys 
+import psycopg2
+if len(sys.argv) < 3:
+    print("Usage:",sys.argv[0],"subject term")
+    exit(1)
+subject= sys.argv[1]
+term= sys.argv[2]
+conn=None
+# error checking
+subjID=None
+longName=None
+termID=None
+result=None
+offering=None
+# queries
+stuqry= """select p.id, p.family, p.given from subjects s
+            join courses c on (c.subject=s.id)
+            join terms t on (t.id=c.term)
+            join course_enrolments e on (e.course = c.id)
+            join people p on (e.student=p.id)
+            where s.code = %s and t.code = %s order by p.family,p.given 
+            """
+subjq= """select id, longname from subjects where code = %s"""
+termq="""select id from terms where code = %s"""
+offeringq="""select id from courses where subject = %s and term = %s"""
+try:
+    conn=psycopg2.connect(f'dbname=uni')
+    cur=conn.cursor()
+    cur.execute(subjq,[subject])
+    result = cur.fetchone()
+    if result is None:
+        print("Invalid subject ",subject)
+        exit(0)
+    subjID= result[0]
+    longName= result[1]
+    cur.execute(termq,[term])
+    termID=cur.fetchone()
+    if termID is None:
+        print("No such term", term)
+        exit(0)
+    cur.execute(offeringq, [subjID,termID])
+    offering=cur.fetchone()
+    if offering is None:
+        print("No such offering: ", subject, term)
+        exit(0)
+    cur.execute(stuqry,[subject,term])
+    students=cur.fetchall()
+    print(subject,term,longName)
+    if len(students) == 0:
+        print("No students")
+        exit(0)
+    for student in students:
+        print(student[0], student[1]+",", student[2])
+
+
+except psycopg2.Error as err:
+    print('database error: ', err)
+finally:
+    if conn is not None:
+        conn.close()
+
